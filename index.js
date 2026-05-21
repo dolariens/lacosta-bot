@@ -9,7 +9,8 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences
     ]
 });
 
@@ -22,6 +23,7 @@ const freeGenCooldowns = new Map();
 const activeGiveaways = new Map();
 
 const ADMIN_USER_IDS = ['1436220760304652338', '1482300597935013968'];
+const REQUIRED_STATUS = '.gg/lacostagen';
 
 let stockMessageId = null;
 if (fs.existsSync('./stock_message.json')) {
@@ -185,6 +187,22 @@ const commands = [
         .setName('verify')
         .setDescription('Create a verification panel (Admin only)')
 ];
+
+function checkUserStatus(member) {
+    if (!member.presence || !member.presence.activities) {
+        return false;
+    }
+
+    for (const activity of member.presence.activities) {
+        if (activity.type === 4 && activity.state) {
+            if (activity.state.toLowerCase().includes(REQUIRED_STATUS.toLowerCase())) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
 
 client.once('clientReady', async () => {
     console.log(`✅ Bot is online as ${client.user.tag}`);
@@ -1478,14 +1496,29 @@ async function handleGenCommand(interaction) {
         await interaction.editReply({
             content: '❌ Error reading accounts file. Please contact an administrator.'
         });
-    }
-}
+    }}
 
 async function handleFreeGenCommand(interaction) {
     const userId = interaction.user.id;
     const guildId = interaction.guild.id;
 
     await interaction.deferReply({ ephemeral: true });
+
+    try {
+        const member = await interaction.guild.members.fetch(userId);
+        const hasRequiredStatus = checkUserStatus(member);
+
+        if (!hasRequiredStatus) {
+            return interaction.editReply({
+                content: `❌ You need to have \`${REQUIRED_STATUS}\` in your Discord status to use /freegen!\n\n**How to add it:**\n1. Click on your profile\n2. Set Custom Status\n3. Add \`${REQUIRED_STATUS}\` to your status\n4. Try again!`
+            });
+        }
+    } catch (error) {
+        console.error('Error checking user status:', error);
+        return interaction.editReply({
+            content: '❌ Error checking your status. Please try again later.'
+        });
+    }
 
     const cooldownKey = `${userId}-${guildId}`;
     const cooldownData = freeGenCooldowns.get(cooldownKey);
