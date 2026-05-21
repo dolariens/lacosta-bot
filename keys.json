@@ -1,0 +1,157 @@
+{
+  "supportCategoryId": "1504392165957173308",
+  "requestCategoryId": "1504392266226335775",
+  "buyCategoryId": "1504392284668694578",
+  "premiumRoleId": "1502902717755166911",
+  "adminRoleId": "1502902566533468202",
+  "ticketLogChannelId": "",
+  "staffRoleId": "",
+  "ticketPrefix": "ticket-",
+  "keys": [
+    {
+      "key": "88C8-77E7-807A-2A55-3A3B-B798-37D7-1EA9",
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "duration": "test",
+      "durationMs": 3600000,
+      "expiresAt": 1779210900176,
+      "createdAt": 1779207300176,
+      "redeemed": true,
+      "givenBy": "1482300597935013968",
+      "redeemedBy": "1482300597935013968",
+      "redeemedAt": 1779207324641
+    },
+    {
+      "key": "D9D9-4B01-1B68-9E8B-E238-7DF6-F8C2-BE26",
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "duration": "test",
+      "durationMs": 3600000,
+      "expiresAt": 1779211259166,
+      "createdAt": 1779207659166,
+      "redeemed": false,
+      "givenBy": "1482300597935013968"
+    },
+    {
+      "key": "2465-FF31-70C3-2D02-326F-E229-71D6-C4D1",
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "duration": "test",
+      "durationMs": 3600000,
+      "expiresAt": 1779211573891,
+      "createdAt": 1779207973891,
+      "redeemed": false,
+      "givenBy": "1482300597935013968"
+    },
+    {
+      "key": "5764-9918-EA20-AF19-BA26-830E-1CB0-9644",
+      "userId": "1436220760304652338",
+      "guildId": "1488461979126337536",
+      "duration": "test",
+      "durationMs": 3600000,
+      "expiresAt": 1779211615380,
+      "createdAt": 1779208015380,
+      "redeemed": true,
+      "givenBy": "1482300597935013968",
+      "redeemedBy": "1436220760304652338",
+      "redeemedAt": 1779208042508
+    },
+    {
+      "key": "E511-0D59-C5DB-5577-6FAD-80DC-CA78-12B7",
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "duration": "test",
+      "durationMs": 3600000,
+      "expiresAt": 1779220989366,
+      "createdAt": 1779217389366,
+      "redeemed": false,
+      "givenBy": "1482300597935013968"
+    },
+    {
+      "key": "839F-79C1-5588-B8B8-F98D-886E-E5E2-2CC1",
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "duration": "test",
+      "durationMs": 3600000,
+      "expiresAt": 1779264350530,
+      "createdAt": 1779260750530,
+      "redeemed": true,
+      "givenBy": "1482300597935013968",
+      "redeemedBy": "1482300597935013968",
+      "redeemedAt": 1779260756581
+    },
+    {
+      "key": "E2C4-8387-8E4A-70DA-8A78-F2C3-FB69-65FA",
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "duration": "test",
+      "durationMs": 3600000,
+      "expiresAt": 1779283414844,
+      "createdAt": 1779279814844,
+      "redeemed": true,
+      "givenBy": "1482300597935013968",
+      "redeemedBy": "1482300597935013968",
+      "redeemedAt": 1779279821771
+    },
+    {
+      "key": "5088-B370-AD05-D675-B509-7A70-3979-BF9F",
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "duration": "test",
+      "durationMs": 3600000,
+      "expiresAt": 1779287639453,
+      "createdAt": 1779284039453,
+      "redeemed": true,
+      "givenBy": "1482300597935013968",
+      "redeemedBy": "1482300597935013968",
+      "redeemedAt": 1779284047118
+    }
+  ],
+  "subscriptions": [
+    {
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "key": "88C8-77E7-807A-2A55-3A3B-B798-37D7-1EA9",
+      "startedAt": 1779207324641,
+      "expiresAt": 1779210924641,
+      "duration": "test",
+      "active": false
+    },
+    {
+      "userId": "1436220760304652338",
+      "guildId": "1488461979126337536",
+      "key": "5764-9918-EA20-AF19-BA26-830E-1CB0-9644",
+      "startedAt": 1779208042508,
+      "expiresAt": 1779211642508,
+      "duration": "test",
+      "active": false
+    },
+    {
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "key": "839F-79C1-5588-B8B8-F98D-886E-E5E2-2CC1",
+      "startedAt": 1779260756581,
+      "expiresAt": 1779264356581,
+      "duration": "test",
+      "active": false
+    },
+    {
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "key": "E2C4-8387-8E4A-70DA-8A78-F2C3-FB69-65FA",
+      "startedAt": 1779279821771,
+      "expiresAt": 1779283421771,
+      "duration": "test",
+      "active": false
+    },
+    {
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "key": "5088-B370-AD05-D675-B509-7A70-3979-BF9F",
+      "startedAt": 1779284047118,
+      "expiresAt": 1779287647118,
+      "duration": "test",
+      "active": false
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "users": [
+    {
+      "userId": "1436220760304652338",
+      "guildId": "1488461979126337536",
+      "username": "izy08252",
+      "whitelistedAt": 1779208042509,
+      "expiresAt": 1779211642508,
+      "duration": "test",
+      "active": false
+    },
+    {
+      "userId": "1482300597935013968",
+      "guildId": "1488461979126337536",
+      "username": "exuberant_fawn_04943",
+      "whitelistedAt": 1779260756582,
+      "expiresAt": 1779287647118,
+      "duration": "test",
+      "active": false
+    }
+  ]
+}
