@@ -4,5 +4,6 @@
   "buyCategoryId": "1504392284668694578",
   "ticketLogChannelId": "",
   "staffRoleId": "",
-  "ticketPrefix": "ticket-"
+  "ticketPrefix": "ticket-",
+  "verifiedRoleId": "1502902789985276065"
 }
