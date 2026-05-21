@@ -19,6 +19,7 @@ const paymentSessions = new Map();
 const paymentMonitors = new Map();
 const genCooldowns = new Map();
 const freeGenCooldowns = new Map();
+const activeGiveaways = new Map();
 
 const ADMIN_USER_IDS = ['1436220760304652338', '1482300597935013968'];
 
@@ -149,7 +150,40 @@ const commands = [
             option.setName('user')
                 .setDescription('User to remove whitelist from')
                 .setRequired(true)
+        ),
+    new SlashCommandBuilder()
+        .setName('giveaway')
+        .setDescription('Create a giveaway (Admin only)')
+        .addStringOption(option =>
+            option.setName('duration')
+                .setDescription('Key duration')
+                .setRequired(true)
+                .addChoices(
+                    { name: '1 Hour (Test)', value: 'test' },
+                    { name: '1 Day', value: '1day' },
+                    { name: '1 Week', value: '1week' }
+                )
         )
+        .addIntegerOption(option =>
+            option.setName('winners')
+                .setDescription('Number of winners')
+                .setRequired(true)
+                .setMinValue(1)
+                .setMaxValue(20)
+        )
+        .addStringOption(option =>
+            option.setName('time')
+                .setDescription('Giveaway duration (e.g., 1h, 30m, 1d)')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option.setName('description')
+                .setDescription('Giveaway description')
+                .setRequired(false)
+        ),
+    new SlashCommandBuilder()
+        .setName('verify')
+        .setDescription('Create a verification panel (Admin only)')
 ];
 
 client.once('clientReady', async () => {
@@ -174,6 +208,7 @@ client.once('clientReady', async () => {
     }
 
     setInterval(checkExpiredSubscriptions, 60000);
+    setInterval(checkExpiredGiveaways, 10000);
     await initializeStockWebhook();
     watchStockFiles();
 });
@@ -250,6 +285,10 @@ client.on('interactionCreate', async (interaction) => {
             } else if (interaction.customId.startsWith('check_payment_')) {
                 const paymentId = interaction.customId.replace('check_payment_', '');
                 await checkPaymentStatus(interaction, paymentId);
+            } else if (interaction.customId.startsWith('giveaway_enter_')) {
+                await handleGiveawayEntry(interaction);
+            } else if (interaction.customId === 'verify_button') {
+                await handleVerification(interaction);
             }
         } else if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'duration_select') {
@@ -274,6 +313,10 @@ client.on('interactionCreate', async (interaction) => {
                 await handleWhitelistCommand(interaction);
             } else if (interaction.commandName === 'unwhitelist') {
                 await handleUnwhitelistCommand(interaction);
+            } else if (interaction.commandName === 'giveaway') {
+                await handleGiveawayCommand(interaction);
+            } else if (interaction.commandName === 'verify') {
+                await handleVerifyCommand(interaction);
             }
         }
     } catch (error) {
@@ -288,6 +331,293 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 });
+
+async function handleGiveawayCommand(interaction) {
+    const userId = interaction.user.id;
+    
+    if (!ADMIN_USER_IDS.includes(userId)) {
+        return interaction.reply({
+            content: '❌ You don\'t have permission to use this command.',
+            ephemeral: true
+        });
+    }
+
+    const duration = interaction.options.getString('duration');
+    const winners = interaction.options.getInteger('winners');
+    const timeStr = interaction.options.getString('time');
+    const description = interaction.options.getString('description') || 'React with 🎉 to enter!';
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const timeMatch = timeStr.match(/^(\d+)([mhd])$/);
+    if (!timeMatch) {
+        return interaction.editReply({
+            content: '❌ Invalid time format. Use format like: 1h, 30m, 1d'
+        });
+    }
+
+    const timeValue = parseInt(timeMatch[1]);
+    const timeUnit = timeMatch[2];
+    
+    let durationMs;
+    switch (timeUnit) {
+        case 'm':
+            durationMs = timeValue * 60 * 1000;
+            break;
+        case 'h':
+            durationMs = timeValue * 60 * 60 * 1000;
+            break;
+        case 'd':
+            durationMs = timeValue * 24 * 60 * 60 * 1000;
+            break;
+    }
+
+    const endTime = Date.now() + durationMs;
+    const durationText = duration === 'test' ? '1 Hour' : duration === '1day' ? '1 Day' : '1 Week';
+
+    const giveawayEmbed = new EmbedBuilder()
+        .setColor('#FEE75C')
+        .setTitle('🎉 GIVEAWAY 🎉')
+        .setDescription(`${description}\n\n**Prize:** ${winners}x ${durationText} Key${winners > 1 ? 's' : ''}\n**Winners:** ${winners}\n**Ends:** <t:${Math.floor(endTime / 1000)}:R>`)
+        .setFooter({ text: `Hosted by ${interaction.user.tag}` })
+        .setTimestamp();
+
+    const enterButton = new ButtonBuilder()
+        .setCustomId(`giveaway_enter_${Date.now()}`)
+        .setLabel('🎉 Enter Giveaway')
+        .setStyle(ButtonStyle.Success);
+
+    const row = new ActionRowBuilder().addComponents(enterButton);
+
+    const giveawayMessage = await interaction.channel.send({ embeds: [giveawayEmbed], components: [row] });
+
+    activeGiveaways.set(giveawayMessage.id, {
+        messageId: giveawayMessage.id,
+        channelId: interaction.channel.id,
+        guildId: interaction.guild.id,
+        hostId: interaction.user.id,
+        duration: duration,
+        winners: winners,
+        endTime: endTime,
+        entries: [],
+        ended: false
+    });
+
+    await interaction.editReply({
+        content: `✅ Giveaway created successfully! It will end <t:${Math.floor(endTime / 1000)}:R>`
+    });
+}
+
+async function handleGiveawayEntry(interaction) {
+    const messageId = interaction.message.id;
+    const giveaway = activeGiveaways.get(messageId);
+
+    if (!giveaway) {
+        return interaction.reply({
+            content: '❌ This giveaway is no longer active.',
+            ephemeral: true
+        });
+    }
+
+    if (giveaway.ended) {
+        return interaction.reply({
+            content: '❌ This giveaway has already ended.',
+            ephemeral: true
+        });
+    }
+
+    const userId = interaction.user.id;
+
+    if (giveaway.entries.includes(userId)) {
+        return interaction.reply({
+            content: '❌ You have already entered this giveaway!',
+            ephemeral: true
+        });
+    }
+
+    giveaway.entries.push(userId);
+
+    await interaction.reply({
+        content: '✅ You have successfully entered the giveaway! Good luck! 🎉',
+        ephemeral: true
+    });
+}
+
+async function checkExpiredGiveaways() {
+    const now = Date.now();
+
+    for (const [messageId, giveaway] of activeGiveaways.entries()) {
+        if (!giveaway.ended && now >= giveaway.endTime) {
+            await endGiveaway(messageId, giveaway);
+        }
+    }
+}
+
+async function endGiveaway(messageId, giveaway) {
+    giveaway.ended = true;
+
+    try {
+        const channel = client.channels.cache.get(giveaway.channelId);
+        if (!channel) {
+            activeGiveaways.delete(messageId);
+            return;
+        }
+
+        const message = await channel.messages.fetch(messageId);
+
+        if (giveaway.entries.length === 0) {
+            const noWinnersEmbed = new EmbedBuilder()
+                .setColor('#ED4245')
+                .setTitle('🎉 GIVEAWAY ENDED 🎉')
+                .setDescription('No one entered the giveaway. 😢')
+                .setFooter({ text: `Hosted by ${giveaway.hostId}` })
+                .setTimestamp();
+
+            await message.edit({ embeds: [noWinnersEmbed], components: [] });
+            await channel.send('❌ Giveaway ended with no entries.');
+            activeGiveaways.delete(messageId);
+            return;
+        }
+
+        const winnersCount = Math.min(giveaway.winners, giveaway.entries.length);
+        const winners = [];
+
+        const shuffled = [...giveaway.entries].sort(() => Math.random() - 0.5);
+        for (let i = 0; i < winnersCount; i++) {
+            winners.push(shuffled[i]);
+        }
+
+        const durationMs = giveaway.duration === 'test' ? 3600000 : giveaway.duration === '1day' ? 86400000 : 604800000;
+        const durationText = giveaway.duration === 'test' ? '1 Hour' : giveaway.duration === '1day' ? '1 Day' : '1 Week';
+
+        for (const winnerId of winners) {
+            const key = generateKey();
+            const expiresAt = Date.now() + durationMs;
+
+            keysData.keys.push({
+                key: key,
+                userId: winnerId,
+                guildId: giveaway.guildId,
+                duration: giveaway.duration,
+                durationMs: durationMs,
+                expiresAt: expiresAt,
+                createdAt: Date.now(),
+                redeemed: false,
+                giveaway: true
+            });
+
+            try {
+                const winner = await client.users.fetch(winnerId);
+                const keyEmbed = new EmbedBuilder()
+                    .setColor('#00FF00')
+                    .setTitle('🎉 Congratulations! You Won!')
+                    .setDescription(`You won the giveaway!\n\nHere is your key:\n\n\`\`\`${key}\`\`\`\n\nUse \`/redeem ${key}\` to redeem your key.`)
+                    .addFields(
+                        { name: '⏱️ Duration', value: durationText, inline: true },
+                        { name: '📅 Valid until', value: `<t:${Math.floor(expiresAt / 1000)}:F>`, inline: false }
+                    )
+                    .setFooter({ text: 'Keep this key safe!' })
+                    .setTimestamp();
+
+                await winner.send({ embeds: [keyEmbed] });
+            } catch (error) {
+                console.error(`Error sending key to winner ${winnerId}:`, error);
+            }
+        }
+
+        saveKeys();
+
+        const winnerMentions = winners.map(id => `<@${id}>`).join(', ');
+
+        const endedEmbed = new EmbedBuilder()
+            .setColor('#00FF00')
+            .setTitle('🎉 GIVEAWAY ENDED 🎉')
+            .setDescription(`**Winners:** ${winnerMentions}\n\n**Prize:** ${winnersCount}x ${durationText} Key${winnersCount > 1 ? 's' : ''}`)
+            .setFooter({ text: `Hosted by ${giveaway.hostId}` })
+            .setTimestamp();
+
+        await message.edit({ embeds: [endedEmbed], components: [] });
+        await channel.send(`🎉 Congratulations ${winnerMentions}! You won the giveaway! Check your DMs for your key!`);
+
+        activeGiveaways.delete(messageId);
+
+    } catch (error) {
+        console.error('Error ending giveaway:', error);
+        activeGiveaways.delete(messageId);
+    }
+}
+
+async function handleVerifyCommand(interaction) {
+    const userId = interaction.user.id;
+    
+    if (!ADMIN_USER_IDS.includes(userId)) {
+        return interaction.reply({
+            content: '❌ You don\'t have permission to use this command.',
+            ephemeral: true
+        });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const verifyEmbed = new EmbedBuilder()
+        .setColor('#5865F2')
+        .setTitle('✅ Verification')
+        .setDescription('Click the button below to verify yourself and get access to the server!')
+        .setFooter({ text: `${interaction.guild.name} Verification` })
+        .setTimestamp();
+
+    const verifyButton = new ButtonBuilder()
+        .setCustomId('verify_button')
+        .setLabel('✅ Verify')
+        .setStyle(ButtonStyle.Success);
+
+    const row = new ActionRowBuilder().addComponents(verifyButton);
+
+    await interaction.channel.send({ embeds: [verifyEmbed], components: [row] });
+
+    await interaction.editReply({
+        content: '✅ Verification panel created successfully!'
+    });
+}
+
+async function handleVerification(interaction) {
+    const userId = interaction.user.id;
+    const guildId = interaction.guild.id;
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+        const member = await interaction.guild.members.fetch(userId);
+
+        if (!config.verifiedRoleId) {
+            return interaction.editReply({
+                content: '❌ Verified role is not configured. Please contact an administrator.'
+            });
+        }
+
+        if (member.roles.cache.has(config.verifiedRoleId)) {
+            return interaction.editReply({
+                content: '✅ You are already verified!'
+            });
+        }
+
+        await member.roles.add(config.verifiedRoleId);
+
+        const successEmbed = new EmbedBuilder()
+            .setColor('#00FF00')
+            .setTitle('✅ Verification Successful!')
+            .setDescription(`You have been verified in **${interaction.guild.name}**!\n\nYou now have access to the server.`)
+            .setTimestamp();
+
+        await interaction.editReply({ embeds: [successEmbed] });
+
+    } catch (error) {
+        console.error('Error verifying user:', error);
+        await interaction.editReply({
+            content: '❌ Error verifying you. Please contact an administrator.'
+        });
+    }
+}
 
 async function handleTicketCreation(interaction) {
     const type = interaction.customId.replace('create_ticket_', '');
@@ -738,7 +1068,7 @@ async function handleRedeemCommand(interaction) {
 
     if (!keyData) {
         return interaction.editReply({
-            content: '❌Invalid key or key does not belong to this server.'
+            content: '❌ Invalid key or key does not belong to this server.'
         });
     }
 
@@ -1447,7 +1777,8 @@ async function checkExpiredSubscriptions() {
                     .setDescription('Your subscription has expired. Your whitelist has been removed.')
                     .addFields(
                         { name: '📦 Package', value: sub.duration === 'test' ? '1 Hour (Test)' : sub.duration === '1day' ? '1 Day' : '1 Week', inline: true },
-                        { name: '📅 Expired at', value: `<t:${Math.floor(sub.expiresAt / 1000)}:F>`, inline: true })
+                        { name: '📅 Expired at', value: `<t:${Math.floor(sub.expiresAt / 1000)}:F>`, inline: true }
+                    )
                     .setFooter({ text: 'Purchase a new key with !ticket buy' })
                     .setTimestamp();
 
