@@ -111,9 +111,9 @@ const commands = [
                 .setDescription('Duration of the key')
                 .setRequired(true)
                 .addChoices(
-                    { name: '1 Hour (Test)', value: 'test' },
                     { name: '1 Day', value: '1day' },
-                    { name: '1 Week', value: '1week' }
+                    { name: '1 Week', value: '1week' },
+                    { name: 'Lifetime', value: 'lifetime' }
                 )
         ),
     new SlashCommandBuilder()
@@ -161,9 +161,9 @@ const commands = [
                 .setDescription('Key duration')
                 .setRequired(true)
                 .addChoices(
-                    { name: '1 Hour (Test)', value: 'test' },
                     { name: '1 Day', value: '1day' },
-                    { name: '1 Week', value: '1week' }
+                    { name: '1 Week', value: '1week' },
+                    { name: 'Lifetime', value: 'lifetime' }
                 )
         )
         .addIntegerOption(option =>
@@ -391,7 +391,7 @@ async function handleGiveawayCommand(interaction) {
     }
 
     const endTime = Date.now() + durationMs;
-    const durationText = duration === 'test' ? '1 Hour' : duration === '1day' ? '1 Day' : '1 Week';
+    const durationText = duration === '1day' ? '1 Day' : duration === '1week' ? '1 Week' : 'Lifetime';
 
     const giveawayEmbed = new EmbedBuilder()
         .setColor('#FEE75C')
@@ -505,12 +505,12 @@ async function endGiveaway(messageId, giveaway) {
             winners.push(shuffled[i]);
         }
 
-        const durationMs = giveaway.duration === 'test' ? 3600000 : giveaway.duration === '1day' ? 86400000 : 604800000;
-        const durationText = giveaway.duration === 'test' ? '1 Hour' : giveaway.duration === '1day' ? '1 Day' : '1 Week';
+        const durationMs = giveaway.duration === '1day' ? 86400000 : giveaway.duration === '1week' ? 604800000 : null;
+        const durationText = giveaway.duration === '1day' ? '1 Day' : giveaway.duration === '1week' ? '1 Week' : 'Lifetime';
 
         for (const winnerId of winners) {
             const key = generateKey();
-            const expiresAt = Date.now() + durationMs;
+            const expiresAt = durationMs ? Date.now() + durationMs : null;
 
             keysData.keys.push({
                 key: key,
@@ -532,7 +532,7 @@ async function endGiveaway(messageId, giveaway) {
                     .setDescription(`You won the giveaway!\n\nHere is your key:\n\n\`\`\`${key}\`\`\`\n\nUse \`/redeem ${key}\` to redeem your key.`)
                     .addFields(
                         { name: '⏱️ Duration', value: durationText, inline: true },
-                        { name: '📅 Valid until', value: `<t:${Math.floor(expiresAt / 1000)}:F>`, inline: false }
+                        { name: '📅 Valid until', value: expiresAt ? `<t:${Math.floor(expiresAt / 1000)}:F>` : 'Never expires', inline: false }
                     )
                     .setFooter({ text: 'Keep this key safe!' })
                     .setTimestamp();
@@ -720,7 +720,7 @@ async function handleBuyTicketAutoResponse(channel, user) {
     const durationEmbed = new EmbedBuilder()
         .setColor('#FEE75C')
         .setTitle('⏱️ Select Duration')
-        .setDescription('Please select your desired duration:\n\n**Test (1 Hour)** - $1.00\n**1 Day** - $5.00\n**1 Week** - $15.00')
+        .setDescription('Please select your desired duration:\n\n**1 Day** - $5.00\n**1 Week** - $15.00\n**Lifetime** - $300.00')
         .setFooter({ text: 'You will receive payment information immediately after selection' })
         .setTimestamp();
 
@@ -728,12 +728,6 @@ async function handleBuyTicketAutoResponse(channel, user) {
         .setCustomId('duration_select')
         .setPlaceholder('Select a duration')
         .addOptions([
-            {
-                label: 'Test (1 Hour) - $1.00',
-                description: 'Test access for 1 hour',
-                value: 'test_1',
-                emoji: '🧪'
-            },
             {
                 label: '1 Day - $5.00',
                 description: 'Access for 1 day',
@@ -745,6 +739,12 @@ async function handleBuyTicketAutoResponse(channel, user) {
                 description: 'Access for 1 week',
                 value: '1week_15',
                 emoji: '📆'
+            },
+            {
+                label: 'Lifetime - $300.00',
+                description: 'Lifetime access - never expires',
+                value: 'lifetime_300',
+                emoji: '♾️'
             }
         ]);
 
@@ -758,8 +758,8 @@ async function handleDurationSelect(interaction) {
     const [duration, priceStr] = selection.split('_');
     const priceUSD = parseFloat(priceStr);
 
-    const durationText = duration === 'test' ? '1 Hour (Test)' : duration === '1day' ? '1 Day' : '1 Week';
-    const durationMs = duration === 'test' ? 3600000 : duration === '1day' ? 86400000 : 604800000;
+    const durationText = duration === '1day' ? '1 Day' : duration === '1week' ? '1 Week' : 'Lifetime';
+    const durationMs = duration === '1day' ? 86400000 : duration === '1week' ? 604800000 : null;
 
     await interaction.deferReply();
 
@@ -1000,7 +1000,7 @@ function startPaymentMonitoring(paymentId, channelId, messageId) {
 
 async function processSuccessfulPayment(channel, sessionData) {
     const key = generateKey();
-    const expiresAt = Date.now() + sessionData.durationMs;
+    const expiresAt = sessionData.durationMs ? Date.now() + sessionData.durationMs : null;
 
     keysData.keys.push({
         key: key,
@@ -1027,14 +1027,16 @@ async function processSuccessfulPayment(channel, sessionData) {
     try {
         const user = await client.users.fetch(sessionData.userId);
         
+        const durationText = sessionData.duration === '1day' ? '1 Day' : sessionData.duration === '1week' ? '1 Week' : 'Lifetime';
+        
         const keyEmbed = new EmbedBuilder()
             .setColor('#00FF00')
             .setTitle('🔑 Your Key')
             .setDescription(`Here is your key:\n\n\`\`\`${key}\`\`\`\n\nUse \`/redeem ${key}\` to redeem your key and get access.`)
             .addFields(
-                { name: '⏱️ Duration', value: sessionData.duration === 'test' ? '1 Hour' : sessionData.duration === '1day' ? '1 Day' : '1 Week', inline: true },
+                { name: '⏱️ Duration', value: durationText, inline: true },
                 { name: '💰 Price', value: `$${sessionData.priceUSD.toFixed(2)}`, inline: true },
-                { name: '📅 Valid until', value: `<t:${Math.floor(expiresAt / 1000)}:F>`, inline: false }
+                { name: '📅 Valid until', value: expiresAt ? `<t:${Math.floor(expiresAt / 1000)}:F>` : 'Never expires', inline: false }
             )
             .setFooter({ text: 'Keep this key safe!' })
             .setTimestamp();
@@ -1096,7 +1098,7 @@ async function handleRedeemCommand(interaction) {
         });
     }
 
-    if (Date.now() > keyData.expiresAt) {
+    if (keyData.expiresAt && Date.now() > keyData.expiresAt) {
         return interaction.editReply({
             content: '❌ This key has expired.'
         });
@@ -1118,7 +1120,7 @@ async function handleRedeemCommand(interaction) {
     keyData.redeemedBy = userId;
     keyData.redeemedAt = Date.now();
 
-    const subscriptionEnd = Date.now() + keyData.durationMs;
+    const subscriptionEnd = keyData.durationMs ? Date.now() + keyData.durationMs : null;
 
     keysData.subscriptions.push({
         userId: userId,
@@ -1152,13 +1154,15 @@ async function handleRedeemCommand(interaction) {
         saveWhitelist();
     }
 
+    const durationText = keyData.duration === '1day' ? '1 Day' : keyData.duration === '1week' ? '1 Week' : 'Lifetime';
+
     const successEmbed = new EmbedBuilder()
         .setColor('#00FF00')
         .setTitle('✅ Key Successfully Redeemed!')
-        .setDescription(`Your key has been successfully redeemed!\n\nYou are now **whitelisted** for **${keyData.duration === 'test' ? '1 Hour' : keyData.duration === '1day' ? '1 Day' : '1 Week'}**.`)
+        .setDescription(`Your key has been successfully redeemed!\n\nYou are now **whitelisted** for **${durationText}**.`)
         .addFields(
             { name: '✅ Status', value: 'Whitelisted', inline: true },
-            { name: '📅 Expires', value: `<t:${Math.floor(subscriptionEnd / 1000)}:R>`, inline: true }
+            { name: '📅 Expires', value: subscriptionEnd ? `<t:${Math.floor(subscriptionEnd / 1000)}:R>` : 'Never', inline: true }
         )
         .setFooter({ text: 'Use /check to check your remaining time' })
         .setTimestamp();
@@ -1186,35 +1190,53 @@ async function handleCheckCommand(interaction) {
         });
     }
 
-    const timeLeft = subscription.expiresAt - Date.now();
+    if (subscription.expiresAt) {
+        const timeLeft = subscription.expiresAt - Date.now();
 
-    if (timeLeft <= 0) {
-        subscription.active = false;
-        saveKeys();
+        if (timeLeft <= 0) {
+            subscription.active = false;
+            saveKeys();
 
-        return interaction.editReply({
-            content: '❌ Your subscription has expired.'
-        });
+            return interaction.editReply({
+                content: '❌ Your subscription has expired.'
+            });
+        }
+
+        const hours = Math.floor(timeLeft / 3600000);
+        const minutes = Math.floor((timeLeft % 3600000) / 60000);
+        const seconds = Math.floor((timeLeft % 60000) / 1000);
+
+        const durationText = subscription.duration === '1day' ? '1 Day' : subscription.duration === '1week' ? '1 Week' : 'Lifetime';
+
+        const checkEmbed = new EmbedBuilder()
+            .setColor('#5865F2')
+            .setTitle('⏱️ Your Subscription Info')
+            .setDescription(`Your subscription is active!`)
+            .addFields(
+                { name: '📅 Expires', value: `<t:${Math.floor(subscription.expiresAt / 1000)}:F>`, inline: false },
+                { name: '⏳ Time Remaining', value: `${hours}h ${minutes}m ${seconds}s`, inline: false },
+                { name: '✅ Status', value: 'Whitelisted', inline: true },
+                { name: '📦 Package', value: durationText, inline: true }
+            )
+            .setFooter({ text: 'Your access will expire automatically' })
+            .setTimestamp();
+
+        await interaction.editReply({ embeds: [checkEmbed] });
+    } else {
+        const checkEmbed = new EmbedBuilder()
+            .setColor('#5865F2')
+            .setTitle('⏱️ Your Subscription Info')
+            .setDescription(`Your subscription is active!`)
+            .addFields(
+                { name: '📅 Expires', value: 'Never', inline: false },
+                { name: '✅ Status', value: 'Whitelisted', inline: true },
+                { name: '📦 Package', value: 'Lifetime', inline: true }
+            )
+            .setFooter({ text: 'You have lifetime access!' })
+            .setTimestamp();
+
+        await interaction.editReply({ embeds: [checkEmbed] });
     }
-
-    const hours = Math.floor(timeLeft / 3600000);
-    const minutes = Math.floor((timeLeft % 3600000) / 60000);
-    const seconds = Math.floor((timeLeft % 60000) / 1000);
-
-    const checkEmbed = new EmbedBuilder()
-        .setColor('#5865F2')
-        .setTitle('⏱️ Your Subscription Info')
-        .setDescription(`Your subscription is active!`)
-        .addFields(
-            { name: '📅 Expires', value: `<t:${Math.floor(subscription.expiresAt / 1000)}:F>`, inline: false },
-            { name: '⏳ Time Remaining', value: `${hours}h ${minutes}m ${seconds}s`, inline: false },
-            { name: '✅ Status', value: 'Whitelisted', inline: true },
-            { name: '📦 Package', value: subscription.duration === 'test' ? '1 Hour (Test)' : subscription.duration === '1day' ? '1 Day' : '1 Week', inline: true }
-        )
-        .setFooter({ text: 'Your access will expire automatically' })
-        .setTimestamp();
-
-    await interaction.editReply({ embeds: [checkEmbed] });
 }
 
 async function handleWhitelistCommand(interaction) {
@@ -1231,36 +1253,55 @@ async function handleWhitelistCommand(interaction) {
         });
     }
 
-    const timeLeft = whitelistEntry.expiresAt - Date.now();
+    if (whitelistEntry.expiresAt) {
+        const timeLeft = whitelistEntry.expiresAt - Date.now();
 
-    if (timeLeft <= 0) {
-        whitelistEntry.active = false;
-        saveWhitelist();
+        if (timeLeft <= 0) {
+            whitelistEntry.active = false;
+            saveWhitelist();
 
-        return interaction.editReply({
-            content: '❌ Your whitelist has expired.\n\nTo get whitelist, buy here: <#1504392067806269531>'
-        });
+            return interaction.editReply({
+                content: '❌ Your whitelist has expired.\n\nTo get whitelist, buy here: <#1504392067806269531>'
+            });
+        }
+
+        const hours = Math.floor(timeLeft / 3600000);
+        const minutes = Math.floor((timeLeft % 3600000) / 60000);
+        const seconds = Math.floor((timeLeft % 60000) / 1000);
+
+        const durationText = whitelistEntry.duration === '1day' ? '1 Day' : whitelistEntry.duration === '1week' ? '1 Week' : 'Lifetime';
+
+        const whitelistEmbed = new EmbedBuilder()
+            .setColor('#00FF00')
+            .setTitle('✅ Whitelist Status')
+            .setDescription(`You are currently whitelisted!`)
+            .addFields(
+                { name: '👤 User', value: `${interaction.user.tag}`, inline: true },
+                { name: '✅ Status', value: 'Active', inline: true },
+                { name: '📅 Expires', value: `<t:${Math.floor(whitelistEntry.expiresAt / 1000)}:F>`, inline: false },
+                { name: '⏳ Time Remaining', value: `${hours}h ${minutes}m ${seconds}s`, inline: false },
+                { name: '📦 Package', value: durationText, inline: true }
+            )
+            .setFooter({ text: 'Your whitelist will expire automatically' })
+            .setTimestamp();
+
+        await interaction.editReply({ embeds: [whitelistEmbed] });
+    } else {
+        const whitelistEmbed = new EmbedBuilder()
+            .setColor('#00FF00')
+            .setTitle('✅ Whitelist Status')
+            .setDescription(`You are currently whitelisted!`)
+            .addFields(
+                { name: '👤 User', value: `${interaction.user.tag}`, inline: true },
+                { name: '✅ Status', value: 'Active', inline: true },
+                { name: '📅 Expires', value: 'Never', inline: false },
+                { name: '📦 Package', value: 'Lifetime', inline: true }
+            )
+            .setFooter({ text: 'You have lifetime access!' })
+            .setTimestamp();
+
+        await interaction.editReply({ embeds: [whitelistEmbed] });
     }
-
-    const hours = Math.floor(timeLeft / 3600000);
-    const minutes = Math.floor((timeLeft % 3600000) / 60000);
-    const seconds = Math.floor((timeLeft % 60000) / 1000);
-
-    const whitelistEmbed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('✅ Whitelist Status')
-        .setDescription(`You are currently whitelisted!`)
-        .addFields(
-            { name: '👤 User', value: `${interaction.user.tag}`, inline: true },
-            { name: '✅ Status', value: 'Active', inline: true },
-            { name: '📅 Expires', value: `<t:${Math.floor(whitelistEntry.expiresAt / 1000)}:F>`, inline: false },
-            { name: '⏳ Time Remaining', value: `${hours}h ${minutes}m ${seconds}s`, inline: false },
-            { name: '📦 Package', value: whitelistEntry.duration === 'test' ? '1 Hour (Test)' : whitelistEntry.duration === '1day' ? '1 Day' : '1 Week', inline: true }
-        )
-        .setFooter({ text: 'Your whitelist will expire automatically' })
-        .setTimestamp();
-
-    await interaction.editReply({ embeds: [whitelistEmbed] });
 }
 
 async function handleUnwhitelistCommand(interaction) {
@@ -1336,9 +1377,9 @@ async function handleGiveKeyCommand(interaction) {
 
     await interaction.deferReply({ ephemeral: true });
 
-    const durationMs = duration === 'test' ? 3600000 : duration === '1day' ? 86400000 : 604800000;
+    const durationMs = duration === '1day' ? 86400000 : duration === '1week' ? 604800000 : null;
     const key = generateKey();
-    const expiresAt = Date.now() + durationMs;
+    const expiresAt = durationMs ? Date.now() + durationMs : null;
 
     keysData.keys.push({
         key: key,
@@ -1355,13 +1396,15 @@ async function handleGiveKeyCommand(interaction) {
     saveKeys();
 
     try {
+        const durationText = duration === '1day' ? '1 Day' : duration === '1week' ? '1 Week' : 'Lifetime';
+        
         const keyEmbed = new EmbedBuilder()
             .setColor('#00FF00')
             .setTitle('🎁 You Received a Key!')
             .setDescription(`You have been given a key by an administrator!\n\n\`\`\`${key}\`\`\`\n\nUse \`/redeem ${key}\` to redeem your key and get access.`)
             .addFields(
-                { name: '⏱️ Duration', value: duration === 'test' ? '1 Hour' : duration === '1day' ? '1 Day' : '1 Week', inline: true },
-                { name: '📅 Valid until', value: `<t:${Math.floor(expiresAt / 1000)}:F>`, inline: false }
+                { name: '⏱️ Duration', value: durationText, inline: true },
+                { name: '📅 Valid until', value: expiresAt ? `<t:${Math.floor(expiresAt / 1000)}:F>` : 'Never expires', inline: false }
             )
             .setFooter({ text: 'Keep this key safe!' })
             .setTimestamp();
@@ -1375,7 +1418,7 @@ async function handleGiveKeyCommand(interaction) {
             .addFields(
                 { name: '🔑 Key', value: `\`${key}\``, inline: false },
                 { name: '👤 User', value: `${targetUser}`, inline: true },
-                { name: '⏱️ Duration', value: duration === 'test' ? '1 Hour' : duration === '1day' ? '1 Day' : '1 Week', inline: true }
+                { name: '⏱️ Duration', value: durationText, inline: true }
             )
             .setTimestamp();
 
@@ -1409,7 +1452,7 @@ async function handleGenCommand(interaction) {
         });
     }
 
-    if (Date.now() > whitelistEntry.expiresAt) {
+    if (whitelistEntry.expiresAt && Date.now() > whitelistEntry.expiresAt) {
         whitelistEntry.active = false;
         saveWhitelist();
         
@@ -1455,7 +1498,7 @@ async function handleGenCommand(interaction) {
                 .setColor('#00FF00')
                 .setTitle(`🎮 ${gameName} Account`)
                 .setDescription(`Here is your ${gameName} account:\n\n\`\`\`${account}\`\`\``)
-                .setFooter({ text: 'Keep this account information safe!' })
+                .setFooter({ text: 'Keep this accountinformation safe!' })
                 .setTimestamp();
 
             await interaction.user.send({ embeds: [accountEmbed] });
@@ -1496,7 +1539,8 @@ async function handleGenCommand(interaction) {
         await interaction.editReply({
             content: '❌ Error reading accounts file. Please contact an administrator.'
         });
-    }}
+    }
+}
 
 async function handleFreeGenCommand(interaction) {
     const userId = interaction.user.id;
@@ -1792,7 +1836,7 @@ async function checkExpiredSubscriptions() {
     }
 
     for (const sub of keysData.subscriptions) {
-        if (sub.active && sub.expiresAt <= now) {
+        if (sub.active && sub.expiresAt && sub.expiresAt <= now) {
             sub.active = false;
             changed = true;
 
@@ -1804,12 +1848,14 @@ async function checkExpiredSubscriptions() {
 
             try {
                 const user = await client.users.fetch(sub.userId);
+                const durationText = sub.duration === '1day' ? '1 Day' : sub.duration === '1week' ? '1 Week' : 'Lifetime';
+                
                 const expiredEmbed = new EmbedBuilder()
                     .setColor('#ED4245')
                     .setTitle('⏰ Subscription Expired')
                     .setDescription('Your subscription has expired. Your whitelist has been removed.')
                     .addFields(
-                        { name: '📦 Package', value: sub.duration === 'test' ? '1 Hour (Test)' : sub.duration === '1day' ? '1 Day' : '1 Week', inline: true },
+                        { name: '📦 Package', value: durationText, inline: true },
                         { name: '📅 Expired at', value: `<t:${Math.floor(sub.expiresAt / 1000)}:F>`, inline: true }
                     )
                     .setFooter({ text: 'Purchase a new key with !ticket buy' })
